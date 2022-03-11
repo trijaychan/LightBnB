@@ -128,14 +128,63 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = function(options, limit = 10) {
-  const queryString = `SELECT * FROM properties LIMIT $1;`
-  const values = [limit];
+  let queryString = `
+  SELECT properties.*, avg(property_reviews.rating) as average_rating
+  FROM properties
+  JOIN property_reviews ON property_id = properties.id
+  `;
+  const values = [];
+  let whereBefore = false;
+
+  if (options.city) {
+    values.push(`%$${options.city}%`);
+    queryString += `WHERE city LIKE $${values.length}`;
+    whereBefore = true;
+  }
+  if (options.owner_id) {
+    values.push(options.owner_id);
+    if (whereBefore) {
+      queryString += ` and owner_id = $${values.length}`;
+    } else {
+      queryString += `\nWHERE owner_id = $${values.length}`;
+      whereBefore = true;
+    }
+  }
+  if (options.minimum_price_per_night) {
+    values.push(options.minimum_price_per_night * 100);
+    if (whereBefore) {
+      queryString += ` and cost_per_night >= $${values.length}`;
+    } else {
+      queryString += `\nWHERE cost_per_night >= $${values.length}`;
+      whereBefore = true;
+    }
+  }
+  if (options.maximum_price_per_night) {
+    values.push(options.maximum_price_per_night * 100);
+    if (whereBefore) {
+      queryString += ` and cost_per_night <= $${values.length}`;
+    } else {
+      queryString += `\nWHERE cost_per_night <= $${values.length}`;
+    }
+  }
+  queryString += "\nGROUP BY properties.id"
+  if (options.minimum_rating) {
+    values.push(options.minimum_rating);
+    queryString += `\nHAVING avg(property_reviews.rating) >= $${values.length}`;
+  }
+  values.push(limit);
+  queryString += `\nLIMIT $${values.length};`;
+
+  console.log(queryString);
 
   return pool
     .query(queryString, values)
     .then(res => {
-      console.log(res.rows);
-      return Promise.resolve(res.rows);
+      if (res.rows) {
+        return Promise.resolve(res.rows);
+      } else {
+        return null;
+      }
     })
     .catch(err => {
       console.log(err);
