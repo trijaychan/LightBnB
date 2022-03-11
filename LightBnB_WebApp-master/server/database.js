@@ -24,7 +24,7 @@ const getUserWithEmail = function(email) {
     .query(queryString, values)
     .then(res => {
       if (res.rows) {
-        return Promise.resolve(res.rows);
+        return Promise.resolve(res.rows[0]);
       } else {
         return null;
       }
@@ -48,7 +48,7 @@ const getUserWithId = function(id) {
     .query(queryString, values)
     .then(res => {
       if (res.rows) {
-        return Promise.resolve(res.rows);
+        return Promise.resolve(res.rows[0]);
       } else {
         return null;
       }
@@ -175,8 +175,6 @@ const getAllProperties = function(options, limit = 10) {
   values.push(limit);
   queryString += `\nLIMIT $${values.length};`;
 
-  console.log(queryString);
-
   return pool
     .query(queryString, values)
     .then(res => {
@@ -199,9 +197,33 @@ exports.getAllProperties = getAllProperties;
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
+  const values = [];
+  let temp = ''
+
+  for (let key in property) {
+    values.push(property[key]);
+    values.length === 14 ? temp += key : temp += key + ', ';
+  }
+
+  const queryString = `
+  INSERT INTO properties (${temp})
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+  RETURNING *;
+  `;
+
+  console.log(queryString);
+  
+  return pool
+    .query(queryString, values)
+    .then(res => {
+      if (res.rows) {
+        return Promise.resolve(res.rows);
+      } else {
+        return null;
+      }
+    })
+    .catch(err => {
+      console.log(err);
+    });
 }
 exports.addProperty = addProperty;
